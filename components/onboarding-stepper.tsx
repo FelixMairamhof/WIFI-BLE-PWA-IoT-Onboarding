@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bluetooth, Wifi, Moon, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -88,40 +88,52 @@ export function OnboardingStepperComponent() {
   };
 
   const handleBluetoothScan = async () => {
+    // Start scanning state
     setIsScanning(true);
-
+  
+    // Check if Bluetooth API is available
     if (!navigator.bluetooth) {
       console.error("Bluetooth API not available");
       alert("Bluetooth API is not supported in your browser.");
       setIsScanning(false);
       return;
     }
-
+  
+    // Check if already connected to a device
+    if (gattServer && bluetoothDevice) {
+      alert(`Already connected to: ${bluetoothDevice.name}. Please disconnect before scanning for new devices.`);
+      setIsScanning(false);
+      return; // Exit the function if already connected
+    }
+  
     try {
+      
+      // Request a new Bluetooth device
       const device: BluetoothDevice = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ['battery_service'], // Can add specific service UUIDs here if known
+        // acceptAllDevices: true,
+        filters: [
+          {namePrefix: "MyESP"}
+        ]
       });
-
+  
       console.log("Device:", device);
       setBluetoothDevice(device); // Update Bluetooth device state
-
+  
       if (device.gatt) {
         const server: BluetoothRemoteGATTServer = await device.gatt.connect();
         console.log("Connected to GATT Server:", server);
         setGattServer(server);
-
-      // Discover services and characteristics
-      const { localCharacteristicUuid, localServiceUuid } = await discoverServicesAndCharacteristics(server);
-
-      // Proceed only if both UUIDs are found
-      if (localServiceUuid && localCharacteristicUuid) {
-        await writeToBluetoothDevice("scan", server, localServiceUuid, localCharacteristicUuid);
-      } else {
-        console.error("Could not find valid service or characteristic UUIDs.");
-        alert("Could not find valid service or characteristic UUIDs.");
-      }
-        setIsScanning(false);
+  
+        // Discover services and characteristics
+        const { localCharacteristicUuid, localServiceUuid } = await discoverServicesAndCharacteristics(server);
+  
+        // Proceed only if both UUIDs are found
+        if (localServiceUuid && localCharacteristicUuid) {
+          await writeToBluetoothDevice("scan", server, localServiceUuid, localCharacteristicUuid);
+        } else {
+          console.error("Could not find valid service or characteristic UUIDs.");
+          alert("Could not find valid service or characteristic UUIDs.");
+        }
         setCurrentStep(1); // Proceed to the next step
       } else {
         console.error("Device does not support GATT");
@@ -134,6 +146,7 @@ export function OnboardingStepperComponent() {
       setIsScanning(false);
     }
   };
+  
 
   // Handle Wi-Fi network selection
   const handleWifiSelect = (value: string) => {
