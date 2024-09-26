@@ -16,65 +16,111 @@ export function OnboardingStepperComponent() {
   const [bluetoothDevice, setBluetoothDevice] = useState<BluetoothDevice | null>(null);
   const [gattServer, setGattServer] = useState<BluetoothRemoteGATTServer | null>(null);
   const [wifiNetworks, setWifiNetworks] = useState<{ ssid: string }[]>([]);
-  
-  const serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-  const characteristicUuid = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
 
-  // Specify structure of wifiNetworks
-  const writeToBluetoothDevice = async (dataToWrite: string, gattServer: BluetoothRemoteGATTServer) => {
+  // Add state to hold discovered service and characteristic UUIDs
+  const [discoveredServiceUuid, setDiscoveredServiceUuid] = useState<string | null>(null);
+  const [discoveredCharacteristicUuid, setDiscoveredCharacteristicUuid] = useState<string | null>(null);
 
-   
+  // Function to discover and log services and characteristics dynamically
+  const discoverServicesAndCharacteristics = async (gattServer: BluetoothRemoteGATTServer) => {
+    try {
+      let localServiceUuid: string | null = null;
+      let localCharacteristicUuid: string | null = null;
 
+      // Get all primary services available on the device
+      const services = await gattServer.getPrimaryServices();
+
+      for (const service of services) {
+        console.log(`Service UUID: ${service.uuid}`);
+        localServiceUuid = service.uuid; // Store the service UUID in a local variable
+
+        // Get all characteristics for the current service
+        const characteristics = await service.getCharacteristics();
+        for (const characteristic of characteristics) {
+          console.log(`Characteristic UUID: ${characteristic.uuid}`);
+          localCharacteristicUuid = characteristic.uuid; // Store the characteristic UUID in a local variable
+          break; // Assuming you only want the first service/characteristic pair
+        }
+
+        if (localServiceUuid && localCharacteristicUuid) {
+          setDiscoveredServiceUuid(localCharacteristicUuid);
+          setDiscoveredCharacteristicUuid(localCharacteristicUuid);
+          // Return found UUIDs only when both are available
+          return { localCharacteristicUuid, localServiceUuid };
+        }
+      }
+
+      // If no services/characteristics found, return nulls
+      return { localCharacteristicUuid: null, localServiceUuid: null };
+    } catch (error) {
+      console.error("Error discovering services and characteristics:", error);
+      return { localCharacteristicUuid: null, localServiceUuid: null }; // Handle errors
+    }
+  };
+
+  const writeToBluetoothDevice = async (
+    dataToWrite: string,
+    gattServer: BluetoothRemoteGATTServer,
+    serviceUuid: string | null,
+    characteristicUuid: string | null
+  ) => {
     if (!gattServer) {
       console.error("No GATT server connected");
       return;
     }
-  
-    try {
 
-  
+    if (!serviceUuid || !characteristicUuid) {
+      console.error("Service or Characteristic UUID is missing");
+      return;
+    }
+
+    try {
       const service = await gattServer.getPrimaryService(serviceUuid);
       const characteristic = await service.getCharacteristic(characteristicUuid);
+
       const data = new TextEncoder().encode(dataToWrite); // Convert string to Uint8Array
       await characteristic.writeValue(data);
-  
+
       console.log("Data written to Bluetooth device:", dataToWrite);
     } catch (error) {
       console.error("Error writing to Bluetooth device:", error);
     }
   };
-    
 
   const handleBluetoothScan = async () => {
     setIsScanning(true);
-  
+
     if (!navigator.bluetooth) {
       console.error("Bluetooth API not available");
       alert("Bluetooth API is not supported in your browser.");
       setIsScanning(false);
       return;
     }
-  
+
     try {
       const device: BluetoothDevice = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
-        optionalServices: [
-          'battery_service',
-          serviceUuid,
-        ],
+        optionalServices: ['battery_service'], // Can add specific service UUIDs here if known
       });
-  
+
       console.log("Device:", device);
       setBluetoothDevice(device); // Update Bluetooth device state
-  
+
       if (device.gatt) {
         const server: BluetoothRemoteGATTServer = await device.gatt.connect();
         console.log("Connected to GATT Server:", server);
-        setGattServer(server); // Set the state, but don't rely on it immediately
-  
-        // Use the server directly for writing to the Bluetooth device
-        await writeToBluetoothDevice("scan", server);
-  
+        setGattServer(server);
+
+      // Discover services and characteristics
+      const { localCharacteristicUuid, localServiceUuid } = await discoverServicesAndCharacteristics(server);
+
+      // Proceed only if both UUIDs are found
+      if (localServiceUuid && localCharacteristicUuid) {
+        await writeToBluetoothDevice("scan", server, localServiceUuid, localCharacteristicUuid);
+      } else {
+        console.error("Could not find valid service or characteristic UUIDs.");
+        alert("Could not find valid service or characteristic UUIDs.");
+      }
         setIsScanning(false);
         setCurrentStep(1); // Proceed to the next step
       } else {
@@ -88,7 +134,7 @@ export function OnboardingStepperComponent() {
       setIsScanning(false);
     }
   };
-   
+
   // Handle Wi-Fi network selection
   const handleWifiSelect = (value: string) => {
     setSelectedWifi(value);
