@@ -90,7 +90,6 @@ export function OnboardingStepperComponent() {
   const handleBluetoothScan = async () => {
     // Start scanning state
     setIsScanning(true);
-  
     // Check if Bluetooth API is available
     if (!navigator.bluetooth) {
       console.error("Bluetooth API not available");
