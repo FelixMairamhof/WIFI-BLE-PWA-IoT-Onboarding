@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-
+import { useRouter } from "next/navigation";
 // Corrected hardcoded UUIDs for the service and characteristic (lowercase hex characters)
 const SERVICE_UUID = "b2bbc642-ad5a-12ed-b878-0242ac120000";
 const CHARACTERISTIC_UUID = "c9af9c76-ad5a-11ed-b879-0242ac120000";
 
 export function OnboardingStepperComponent() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [selectedWifi, setSelectedWifi] = useState<string>("");
@@ -19,7 +20,7 @@ export function OnboardingStepperComponent() {
   const [wifiPassword, setWifiPassword] = useState<string>("");
   const [bluetoothDevice, setBluetoothDevice] = useState<BluetoothDevice | null>(null);
   const [wifiNetworks, setWifiNetworks] = useState<{ ssid: string; rssi: number }[]>([]);
-
+  
   const handleCharacteristicChanged = (event: Event) => {
     const characteristic = event.target as BluetoothRemoteGATTCharacteristic;
     const value = characteristic.value; // DataView containing the value
@@ -52,10 +53,9 @@ export function OnboardingStepperComponent() {
                 let statusMessage = decodedValue.substring(7);
                 if(statusMessage.includes("Failed")){
                   console.log(`Received status message: FAILED to connect to  ${selectedWifi}`);
-                  alert(`Received status message: FAILED to connect to  ${selectedWifi}`);
                 }else{
                   console.log(`Received status message: CONNECTED to ${selectedWifi}`);
-                  alert(`Received status message: CONNECTED to ${selectedWifi}`);
+                  router.push("/app");
                 }
               
             } else {
@@ -174,11 +174,8 @@ const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => 
   const handleWifiConnect = async () => {
     if (bluetoothDevice && bluetoothDevice.gatt) {
       const gattServer = await bluetoothDevice.gatt.connect();
+      setIsWifiModalOpen(false);
       await sendWifiCredentials(gattServer, selectedWifi, wifiPassword);
-  
-      setTimeout(() => {
-        setIsWifiModalOpen(false);
-      }, 2000);
       setWifiPassword("");
     } else {
       alert("Bluetooth device is not connected.");
