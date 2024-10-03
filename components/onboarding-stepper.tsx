@@ -7,12 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 // Corrected hardcoded UUIDs for the service and characteristic (lowercase hex characters)
 const SERVICE_UUID = "b2bbc642-ad5a-12ed-b878-0242ac120000";
 const CHARACTERISTIC_UUID = "c9af9c76-ad5a-11ed-b879-0242ac120000";
 
 export function OnboardingStepperComponent() {
   const router = useRouter();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [selectedWifi, setSelectedWifi] = useState<string>("");
@@ -53,6 +55,12 @@ export function OnboardingStepperComponent() {
                 let statusMessage = decodedValue.substring(7);
                 if(statusMessage.includes("Failed")){
                   console.log(`Received status message: FAILED to connect to  ${selectedWifi}`);
+                  toast({
+                    title: "Connection Failed",
+                    description: `Failed to connect to ${selectedWifi}`,
+                    variant: "destructive", // Custom variant for error messages
+                  });
+                  
                 }else{
                   console.log(`Received status message: CONNECTED to ${selectedWifi}`);
                   router.push("/app");
