@@ -18,22 +18,65 @@ export function OnboardingStepperComponent() {
   const [isWifiModalOpen, setIsWifiModalOpen] = useState(false);
   const [wifiPassword, setWifiPassword] = useState<string>("");
   const [bluetoothDevice, setBluetoothDevice] = useState<BluetoothDevice | null>(null);
-  const [wifiNetworks, setWifiNetworks] = useState<{ ssid: string }[]>([]);
+  const [wifiNetworks, setWifiNetworks] = useState<{ ssid: string; rssi: number }[]>([]);
 
-  // Write the "scan" command to the connected Bluetooth device
-  const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => {
-    try {
-      const service = await gattServer.getPrimaryService(SERVICE_UUID); // Use hardcoded service UUID
-      const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID); // Use hardcoded characteristic UUID
+  const handleCharacteristicChanged = (event: Event) => {
+    const characteristic = event.target as BluetoothRemoteGATTCharacteristic;
+    const value = characteristic.value; // DataView containing the value
 
-      const data = new TextEncoder().encode("scan"); // Convert "scan" string to Uint8Array
-      await characteristic.writeValue(data); // Write the "scan" command to the Bluetooth device
+    if (value) {
+        console.log("Raw DataView:", value); // Log the raw DataView for debugging
 
-      console.log("Data written to Bluetooth device: scan");
-    } catch (error) {
-      console.error("Error writing to Bluetooth device:", error);
+        try {
+            const decoder = new TextDecoder("utf-8");
+            const decodedValue = decoder.decode(value.buffer).trim(); // Trim whitespace from the decoded value
+            console.log("Received Wi-Fi scan results:", decodedValue);
+
+            // Attempt to parse the JSON
+            const parsedData = JSON.parse(decodedValue);
+            if (parsedData.wifiNetworks) {
+                console.log("Parsed networks:", parsedData.wifiNetworks);
+                setWifiNetworks(parsedData.wifiNetworks); // Update the state with Wi-Fi networks
+            } else {
+                console.error("Parsed data does not contain wifiNetworks");
+            }
+        } catch (error) {
+            console.error("Error decoding or parsing data:", error);
+            console.log("Raw value before parsing:", value); // Log the raw value for further inspection
+        }
+    } else {
+        console.log("No value received or characteristic is not set properly.");
     }
-  };
+};
+
+
+
+
+
+
+const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => {
+  try {
+    const service = await gattServer.getPrimaryService(SERVICE_UUID);
+    const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+    // Step 1: Start notifications
+    await characteristic.startNotifications();
+    console.log("Notifications started");
+
+    // Step 2: Set the event listener
+    characteristic.oncharacteristicvaluechanged = handleCharacteristicChanged;
+    console.log("Event listener added");
+
+    // Step 3: Write the "scan" command to the characteristic
+    const data = new TextEncoder().encode("scan");
+    await characteristic.writeValue(data);
+    console.log("Data written to Bluetooth device: scan");
+  } catch (error) {
+    console.error("Error writing to Bluetooth device:", error);
+  }
+};
+
+
 
   // Bluetooth scanning and connection
   const handleBluetoothScan = async () => {
@@ -165,7 +208,7 @@ export function OnboardingStepperComponent() {
           />
           <DialogFooter>
             <Button onClick={handleWifiConnect} className="bg-indigo-600 hover:bg-indigo-700">
-              Connect <ChevronRight className="ml-2 h-4 w-4" />
+              Connect <ChevronRight className="ml-2" />
             </Button>
           </DialogFooter>
         </DialogContent>
