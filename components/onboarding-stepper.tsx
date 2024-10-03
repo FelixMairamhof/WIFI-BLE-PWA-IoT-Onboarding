@@ -29,7 +29,15 @@ export function OnboardingStepperComponent() {
 
         try {
             const decoder = new TextDecoder("utf-8");
-            const decodedValue = decoder.decode(value.buffer).trim(); // Trim whitespace from the decoded value
+            let decodedValue = decoder.decode(value.buffer); // Decode the DataView as UTF-8
+
+            // Remove any extra data after "]}":
+            const removeAfterEnd = (jsonString: string) => {
+                const endIndex = jsonString.indexOf(']}');
+                return endIndex !== -1 ? jsonString.slice(0, endIndex + 2) : jsonString;
+            };
+
+            decodedValue = removeAfterEnd(decodedValue); // Apply the cleanup function
             console.log("Received Wi-Fi scan results:", decodedValue);
 
             // Attempt to parse the JSON
@@ -48,6 +56,7 @@ export function OnboardingStepperComponent() {
         console.log("No value received or characteristic is not set properly.");
     }
 };
+
 
 
 
@@ -178,9 +187,9 @@ const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => 
                   <SelectValue placeholder="Select Wi-Fi Network" />
                 </SelectTrigger>
                 <SelectContent className="bg-blue-700 text-white border-blue-600 rounded-md shadow-lg">
-                  {wifiNetworks.map((network) => (
+                  {wifiNetworks.map((network, index) => (
                     <SelectItem
-                      key={network.ssid} // Use SSID as a unique key
+                      key={`${network.ssid}-${network.rssi}-${index}`} // Generate a unique key using ssid, rssi, and index
                       value={network.ssid}
                       className="hover:bg-blue-600 focus:bg-blue-600 cursor-pointer"
                     >
@@ -188,6 +197,7 @@ const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => 
                     </SelectItem>
                   ))}
                 </SelectContent>
+
               </Select>
             </div>
           )}
@@ -213,6 +223,8 @@ const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 }
