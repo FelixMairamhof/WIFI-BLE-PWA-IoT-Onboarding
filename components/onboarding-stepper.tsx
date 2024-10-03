@@ -25,41 +25,49 @@ export function OnboardingStepperComponent() {
     const value = characteristic.value; // DataView containing the value
 
     if (value) {
-        console.log("Raw DataView:", value); // Log the raw DataView for debugging
-
         try {
             const decoder = new TextDecoder("utf-8");
             let decodedValue = decoder.decode(value.buffer); // Decode the DataView as UTF-8
 
-            // Remove any extra data after "]}":
-            const removeAfterEnd = (jsonString: string) => {
-                const endIndex = jsonString.indexOf(']}');
-                return endIndex !== -1 ? jsonString.slice(0, endIndex + 2) : jsonString;
-            };
+            // Check if the value is Wi-Fi scan results or a status message
+            if (decodedValue.startsWith("ALLWIFIS:")) {
+                // Handle Wi-Fi scan results
+                let jsonString = decodedValue.substring(9); // Remove the "ALLWIFIS:" prefix
 
-            decodedValue = removeAfterEnd(decodedValue); // Apply the cleanup function
-            console.log("Received Wi-Fi scan results:", decodedValue);
+                // Remove any extra data after "]}":
+                const removeAfterEnd = (jsonString: string) => {
+                    const endIndex = jsonString.indexOf(']}');
+                    return endIndex !== -1 ? jsonString.slice(0, endIndex + 2) : jsonString;
+                };
 
-            // Attempt to parse the JSON
-            const parsedData = JSON.parse(decodedValue);
-            if (parsedData.wifiNetworks) {
+                jsonString = removeAfterEnd(jsonString);  // Apply the cleanup function
+                console.log("Received Wi-Fi scan results:", jsonString);
+
+                // Attempt to parse the JSON
+                const parsedData = JSON.parse(jsonString);
                 console.log("Parsed networks:", parsedData.wifiNetworks);
-                setWifiNetworks(parsedData.wifiNetworks); // Update the state with Wi-Fi networks
+                setWifiNetworks(parsedData.wifiNetworks);  // Update the state with Wi-Fi networks
+            } else if (decodedValue.startsWith("STATUS:")) {
+                // Handle status messages
+                let statusMessage = decodedValue.substring(7);
+                if(statusMessage.includes("Failed")){
+                  console.log(`Received status message: FAILED to connect to  ${selectedWifi}`);
+                  alert(`Received status message: FAILED to connect to  ${selectedWifi}`);
+                }else{
+                  console.log(`Received status message: CONNECTED to ${selectedWifi}`);
+                  alert(`Received status message: CONNECTED to ${selectedWifi}`);
+                }
+              
             } else {
-                console.error("Parsed data does not contain wifiNetworks");
+                console.log("Unknown message format:", decodedValue);
             }
         } catch (error) {
             console.error("Error decoding or parsing data:", error);
-            console.log("Raw value before parsing:", value); // Log the raw value for further inspection
         }
     } else {
         console.log("No value received or characteristic is not set properly.");
     }
 };
-
-
-
-
 
 
 
@@ -77,9 +85,9 @@ const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => 
     console.log("Event listener added");
 
     // Step 3: Write the "scan" command to the characteristic
-    const data = new TextEncoder().encode("scan");
+    const data = new TextEncoder().encode("SCAN");
     await characteristic.writeValue(data);
-    console.log("Data written to Bluetooth device: scan");
+    console.log("Data written to Bluetooth device: SCAN");
   } catch (error) {
     console.error("Error writing to Bluetooth device:", error);
   }
@@ -143,13 +151,38 @@ const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => 
     setIsWifiModalOpen(true);
   };
 
-  // Simulated Wi-Fi connection
-  const handleWifiConnect = () => {
-    setTimeout(() => {
-      setIsWifiModalOpen(false);
-      alert("Connected successfully! Redirecting to homepage...");
-      // Redirect logic can be added here
-    }, 2000);
+  const sendWifiCredentials = async (gattServer: BluetoothRemoteGATTServer, ssid: string, password: string) => {
+    try {
+      const service = await gattServer.getPrimaryService(SERVICE_UUID);
+      const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+  
+      // Prepare the connection string in the format: CONNECT:<SSID>:<PASSWORD>
+      const connectionString = `CONNECT:${ssid}:${password}`;
+  
+      // Encode the connection string into a Uint8Array
+      const data = new TextEncoder().encode(connectionString);
+  
+      // Write the Wi-Fi credentials to the characteristic
+      await characteristic.writeValue(data);
+      console.log("Wi-Fi connection string sent to Bluetooth device");
+    } catch (error) {
+      console.error("Error sending Wi-Fi credentials to Bluetooth device:", error);
+    }
+  };
+  
+  // Call this function when connecting to Wi-Fi
+  const handleWifiConnect = async () => {
+    if (bluetoothDevice && bluetoothDevice.gatt) {
+      const gattServer = await bluetoothDevice.gatt.connect();
+      await sendWifiCredentials(gattServer, selectedWifi, wifiPassword);
+  
+      setTimeout(() => {
+        setIsWifiModalOpen(false);
+      }, 2000);
+      setWifiPassword("");
+    } else {
+      alert("Bluetooth device is not connected.");
+    }
   };
 
   return (
@@ -205,7 +238,7 @@ const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => 
       </div>
 
       <Dialog open={isWifiModalOpen} onOpenChange={setIsWifiModalOpen}>
-        <DialogContent className="bg-indigo-800 text-white">
+        <DialogContent className="bg-indigo-800 text-white scale-90 rounded-xl">
           <DialogHeader>
             <DialogTitle>Connect to {selectedWifi}</DialogTitle>
           </DialogHeader>
