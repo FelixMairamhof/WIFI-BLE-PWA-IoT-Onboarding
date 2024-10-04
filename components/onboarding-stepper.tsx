@@ -25,27 +25,43 @@ export function OnboardingStepperComponent() {
   
 
     // Override console.log to also show logs in a toast
-    useEffect(() => {
-      const originalConsoleLog = console.log;
-  
-      // Override the console.log function
-      console.log = (...args) => {
-        // Show the log message in a toast
-        toast({
-          title: "Log",
-          description: args.map((arg) => String(arg)).join(" "),
-          variant: "default",
-        });
-  
-        // Call the original console.log function to ensure logs still appear in the console
-        originalConsoleLog(...args);
-      };
-  
-      // Clean up the override when the component unmounts
-      return () => {
-        console.log = originalConsoleLog;
-      };
-    }, [toast]);
+// Override console.log and console.error to also show logs/errors in a toast
+useEffect(() => {
+  const originalConsoleLog = console.log;
+  const originalConsoleError = console.error;
+
+  // Override the console.log function
+  console.log = (...args) => {
+    // Show the log message in a toast
+    toast({
+      title: "Log",
+      description: args.map((arg) => String(arg)).join(" "),
+      variant: "default", // Use default variant for logs
+    });
+
+    // Call the original console.log function to ensure logs still appear in the console
+    originalConsoleLog(...args);
+  };
+
+  // Override the console.error function
+  console.error = (...args) => {
+    // Show the error message in a toast
+    toast({
+      title: "Error",
+      description: args.map((arg) => String(arg)).join(" "),
+      variant: "destructive", // Use destructive variant for errors
+    });
+
+    // Call the original console.error function to ensure errors still appear in the console
+    originalConsoleError(...args);
+  };
+
+  // Clean up the overrides when the component unmounts
+  return () => {
+    console.log = originalConsoleLog;
+    console.error = originalConsoleError;
+  };
+}, [toast]);
 
 
   const handleCharacteristicChanged = (event: Event) => {
