@@ -1,5 +1,5 @@
 "use client";
-
+        //TODO: Names comes up two times & an two things are selected 
 import { useEffect, useState } from "react";
 import { Bluetooth, Wifi, Moon, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,31 @@ export function OnboardingStepperComponent() {
   const [bluetoothDevice, setBluetoothDevice] = useState<BluetoothDevice | null>(null);
   const [wifiNetworks, setWifiNetworks] = useState<{ ssid: string; rssi: number }[]>([]);
   
+
+    // Override console.log to also show logs in a toast
+    useEffect(() => {
+      const originalConsoleLog = console.log;
+  
+      // Override the console.log function
+      console.log = (...args) => {
+        // Show the log message in a toast
+        toast({
+          title: "Log",
+          description: args.map((arg) => String(arg)).join(" "),
+          variant: "default",
+        });
+  
+        // Call the original console.log function to ensure logs still appear in the console
+        originalConsoleLog(...args);
+      };
+  
+      // Clean up the override when the component unmounts
+      return () => {
+        console.log = originalConsoleLog;
+      };
+    }, [toast]);
+
+
   const handleCharacteristicChanged = (event: Event) => {
     const characteristic = event.target as BluetoothRemoteGATTCharacteristic;
     const value = characteristic.value; // DataView containing the value
@@ -30,7 +55,7 @@ export function OnboardingStepperComponent() {
     if (value) {
         try {
             const decoder = new TextDecoder("utf-8");
-            let decodedValue = decoder.decode(value.buffer); // Decode the DataView as UTF-8
+            const decodedValue = decoder.decode(value.buffer); // Decode the DataView as UTF-8
 
             // Check if the value is Wi-Fi scan results or a status message
             if (decodedValue.startsWith("ALLWIFIS:")) {
@@ -48,7 +73,6 @@ export function OnboardingStepperComponent() {
 
                 // Attempt to parse the JSON
                 const parsedData = JSON.parse(jsonString);
-                console.log("Parsed networks:", parsedData.wifiNetworks);
                 setWifiNetworks(parsedData.wifiNetworks);  // Update the state with Wi-Fi networks
             } else if (decodedValue.startsWith("STATUS:")) {
                 // Handle status messages
@@ -95,7 +119,6 @@ const writeToBluetoothDevice = async (gattServer: BluetoothRemoteGATTServer) => 
     // Step 3: Write the "scan" command to the characteristic
     const data = new TextEncoder().encode("SCAN");
     await characteristic.writeValue(data);
-    console.log("Data written to Bluetooth device: SCAN");
   } catch (error) {
     console.error("Error writing to Bluetooth device:", error);
   }
